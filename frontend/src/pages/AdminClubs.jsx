@@ -1,6 +1,18 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Search, Plus, Trash2, Edit, Download, X, Users, Camera } from 'lucide-react';
 
+const STORAGE_KEY_CLUBS = 'octalock_clubs';
+
+const loadClubs = () => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_CLUBS);
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return null;
+    return parsed;
+  } catch { return null }
+};
+
 const initialClubs = [
   { id: 1, name: 'T1', captain: 'Faker', members: 8, wins: 150, draws: 20, losses: 30, goalsFor: 320, goalsAgainst: 120, logo: 'https://ui-avatars.com/api/?name=T1&background=random' },
   { id: 2, name: 'Gen.G', captain: 'Chovy', members: 7, wins: 140, draws: 30, losses: 30, goalsFor: 290, goalsAgainst: 110, logo: 'https://ui-avatars.com/api/?name=GenG&background=random' },
@@ -10,7 +22,7 @@ const initialClubs = [
 ];
 
 const AdminClubs = () => {
-  const [clubs, setClubs] = useState(() => JSON.parse(localStorage.getItem('octalock_clubs')) || initialClubs);
+  const [clubs, setClubs] = useState(() => loadClubs() ?? initialClubs);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingClub, setEditingClub] = useState(null);
@@ -32,7 +44,7 @@ const AdminClubs = () => {
     if (m && w + d <= m) setForm(prev => ({ ...prev, losses: m - w - d }));
   }, [form.matches, form.wins, form.draws]);
 
-  useEffect(() => { localStorage.setItem('octalock_clubs', JSON.stringify(clubs)) }, [clubs]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEY_CLUBS, JSON.stringify(clubs)) }, [clubs]);
 
   const filtered = useMemo(() => clubs.filter(c => c.name.toLowerCase().includes(search.toLowerCase())), [search, clubs]);
 

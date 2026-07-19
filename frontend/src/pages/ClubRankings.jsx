@@ -1,12 +1,26 @@
-import React, { useState, useMemo } from 'react';
-import { Search, Download, Filter, X, Trophy, Users } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Search, Download, Filter, X, Trophy, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+
+const ROWS_PER_PAGE = 10;
 
 const ClubRankings = () => {
   const [search, setSearch] = useState('');
   const [selectedClub, setSelectedClub] = useState(null);
+  const [version, setVersion] = useState(0);
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    const handler = () => setVersion(v => v + 1);
+    window.addEventListener('storage', handler);
+    window.addEventListener('focus', handler);
+    return () => { window.removeEventListener('storage', handler); window.removeEventListener('focus', handler) };
+  }, []);
+
+  useEffect(() => { setPage(1) }, [search]);
 
   const clubs = useMemo(() => {
-    const raw = JSON.parse(localStorage.getItem('octalock_clubs')) || [];
+    let raw = [];
+    try { const stored = localStorage.getItem('octalock_clubs'); if (stored) raw = JSON.parse(stored); if (!Array.isArray(raw)) raw = [] } catch { raw = [] }
     return raw
       .map(c => ({
         ...c,
@@ -15,13 +29,19 @@ const ClubRankings = () => {
       }))
       .sort((a, b) => b.pts - a.pts || b.gd - a.gd)
       .map((c, i) => ({ ...c, rank: i + 1 }));
-  }, []);
+  }, [version]);
 
   const filteredClubs = useMemo(() => {
     return clubs.filter(c =>
       c.name?.toLowerCase().includes(search.toLowerCase())
     );
   }, [search, clubs]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredClubs.length / ROWS_PER_PAGE));
+  const paginatedClubs = useMemo(() => {
+    const start = (page - 1) * ROWS_PER_PAGE;
+    return filteredClubs.slice(start, start + ROWS_PER_PAGE);
+  }, [filteredClubs, page]);
 
   return (
     <div className="max-w-[90rem] mx-auto animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
@@ -66,12 +86,12 @@ const ClubRankings = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredClubs.length === 0 ? (
+              {paginatedClubs.length === 0 ? (
                 <tr>
                   <td colSpan="11" className="p-8 text-center text-textMuted">No clubs found.</td>
                 </tr>
               ) : (
-                filteredClubs.map(club => (
+                paginatedClubs.map(club => (
                   <tr
                     key={club.id || club.name}
                     onClick={() => setSelectedClub(club)}
@@ -114,6 +134,21 @@ const ClubRankings = () => {
             </tbody>
           </table>
         </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-borderGray/50">
+            <span className="text-sm text-textMuted">
+              Showing {(page - 1) * ROWS_PER_PAGE + 1}–{Math.min(page * ROWS_PER_PAGE, filteredClubs.length)} of {filteredClubs.length}
+            </span>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-2 rounded-lg hover:bg-surface transition-colors disabled:opacity-30 disabled:cursor-not-allowed"><ChevronLeft className="w-4 h-4" /></button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                <button key={p} onClick={() => setPage(p)} className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${p === page ? 'bg-accent text-background' : 'hover:bg-surface text-textMuted'}`}>{p}</button>
+              ))}
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="p-2 rounded-lg hover:bg-surface transition-colors disabled:opacity-30 disabled:cursor-not-allowed"><ChevronRight className="w-4 h-4" /></button>
+            </div>
+          </div>
+        )}
       </div>
 
       {selectedClub && (

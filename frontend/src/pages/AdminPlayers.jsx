@@ -1,6 +1,18 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Search, Plus, Trash2, Edit, UserCheck, UserX, ArrowRightLeft, Download, Upload, X, Camera } from 'lucide-react';
 
+const STORAGE_KEY = 'octalock_players';
+
+const loadPlayers = () => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return null;
+    return parsed;
+  } catch { return null }
+};
+
 const initialPlayers = [
   { id: 1, name: 'Faker', nickname: 'Faker', country: 'KR', club: 'T1', email: 'faker@t1.gg', phone: '+82-10-1234', status: 'active', photo: 'https://ui-avatars.com/api/?name=Faker&background=random', matches: 45, wins: 38, draws: 2, losses: 5, goalsFor: 95, goalsAgainst: 55, streak: 'W W W W W' },
   { id: 2, name: 'Chovy', nickname: 'Chovy', country: 'KR', club: 'GEN', email: 'chovy@gen.gg', phone: '+82-10-5678', status: 'active', photo: 'https://ui-avatars.com/api/?name=Chovy&background=random', matches: 45, wins: 35, draws: 4, losses: 6, goalsFor: 88, goalsAgainst: 53, streak: 'W L W W D' },
@@ -11,7 +23,7 @@ const initialPlayers = [
 ];
 
 const AdminPlayers = () => {
-  const [players, setPlayers] = useState(() => JSON.parse(localStorage.getItem('octalock_players')) || initialPlayers);
+  const [players, setPlayers] = useState(() => loadPlayers() ?? initialPlayers);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState(null);
@@ -33,7 +45,7 @@ const AdminPlayers = () => {
     if (m && w + d <= m) setForm(prev => ({ ...prev, losses: m - w - d }));
   }, [form.matches, form.wins, form.draws]);
 
-  useEffect(() => { localStorage.setItem('octalock_players', JSON.stringify(players)) }, [players]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(players)) }, [players]);
 
   const filtered = useMemo(() => {
     return players.filter(p =>
