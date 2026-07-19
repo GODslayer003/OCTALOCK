@@ -22,7 +22,7 @@ const AdminDashboard = () => {
         duration: 2,
         ease: 'power3.out',
         snap: { innerHTML: 1 },
-        onUpdate: function() {
+        onUpdate: function () {
           el.innerHTML = Math.round(el.innerHTML).toLocaleString();
         }
       });
@@ -40,7 +40,7 @@ const AdminDashboard = () => {
 
   return (
     <div className="animate-in fade-in duration-500">
-      
+
       {/* Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {stats.map((stat, idx) => {
@@ -50,7 +50,7 @@ const AdminDashboard = () => {
               <div className="flex items-start justify-between">
                 <div>
                   <div className="text-white/70 text-sm font-semibold uppercase tracking-wider mb-2">{stat.label}</div>
-                  <div 
+                  <div
                     ref={el => counterRefs.current[idx] = el}
                     className="text-4xl font-display font-black text-white"
                   >
@@ -69,12 +69,12 @@ const AdminDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column - Main Info */}
         <div className="lg:col-span-2 space-y-8">
-          
+
           <div className="glass-panel p-6 stat-card">
             <h3 className="text-xl font-display font-bold mb-6 flex items-center gap-2 text-white">
               <Swords className="w-5 h-5 text-accent" /> Recent Activity
             </h3>
-            
+
             <div className="space-y-4">
               {[
                 { action: 'Match Recorded', detail: 'T1 vs GEN (3-1)', time: '10 mins ago', type: 'match' },
@@ -103,11 +103,11 @@ const AdminDashboard = () => {
             <h3 className="text-xl font-display font-bold mb-6 flex items-center gap-2 text-white">
               <Activity className="w-5 h-5 text-accent" /> System Health
             </h3>
-            
+
             <div className="space-y-6">
               <div>
                 <div className="flex justify-between text-sm mb-2">
-                  <span className="text-white/70 flex items-center gap-2"><Server className="w-4 h-4"/> Server Status</span>
+                  <span className="text-white/70 flex items-center gap-2"><Server className="w-4 h-4" /> Server Status</span>
                   <span className="text-green-400 font-bold">ONLINE</span>
                 </div>
                 <div className="w-full h-2 bg-surface rounded-full overflow-hidden">
@@ -117,7 +117,7 @@ const AdminDashboard = () => {
 
               <div>
                 <div className="flex justify-between text-sm mb-2">
-                  <span className="text-white/70 flex items-center gap-2"><Database className="w-4 h-4"/> Database Health</span>
+                  <span className="text-white/70 flex items-center gap-2"><Database className="w-4 h-4" /> Database Health</span>
                   <span className="text-green-400 font-bold">OPTIMAL</span>
                 </div>
                 <div className="w-full h-2 bg-surface rounded-full overflow-hidden">
@@ -127,7 +127,7 @@ const AdminDashboard = () => {
 
               <div>
                 <div className="flex justify-between text-sm mb-2">
-                  <span className="text-white/70 flex items-center gap-2"><ImageIcon className="w-4 h-4"/> Cloudinary Storage</span>
+                  <span className="text-white/70 flex items-center gap-2"><ImageIcon className="w-4 h-4" /> Cloudinary Storage</span>
                   <span className="text-amber-400 font-bold">45%</span>
                 </div>
                 <div className="w-full h-2 bg-surface rounded-full overflow-hidden">
@@ -136,12 +136,12 @@ const AdminDashboard = () => {
               </div>
             </div>
           </div>
-          
+
           <div className="glass-panel p-6 stat-card bg-accent/5 border-accent/20">
             <h3 className="text-xl font-display font-bold mb-2 flex items-center gap-2 text-accent">
               <Trophy className="w-5 h-5" /> Current Season
             </h3>
-            <p className="text-sm text-white/70 mb-4">Season 4 is currently active.</p>
+            <p className="text-sm text-white/70 mb-4">Season 7 is currently active.</p>
             <button className="w-full py-2 bg-accent/20 text-accent font-bold rounded border border-accent/30 hover:bg-accent hover:text-background transition-colors">
               Manage Season
             </button>

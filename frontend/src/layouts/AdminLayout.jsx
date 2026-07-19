@@ -1,13 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Shield, Swords, Calendar, Trophy, 
   Award, ArrowRightLeft, ImageIcon, LineChart, Settings, 
-  FileText, Database, LogOut, ChevronRight
+  FileText, Database, LogOut, ChevronRight, Menu, X
 } from 'lucide-react';
 
 const AdminLayout = () => {
   const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const menuItems = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
@@ -28,9 +29,12 @@ const AdminLayout = () => {
   return (
     <div className="flex h-screen bg-background overflow-hidden text-white font-sans">
       
+      {/* Mobile overlay */}
+      {sidebarOpen && <div className="fixed inset-0 bg-black/60 z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />}
+
       {/* Sidebar */}
-      <aside className="w-64 bg-surface border-r border-borderGray flex flex-col h-full flex-shrink-0 relative z-20">
-        <div className="p-6 border-b border-borderGray/50 flex items-center justify-between">
+      <aside className={`fixed lg:relative z-40 w-64 bg-surface border-r border-borderGray flex flex-col h-full flex-shrink-0 transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+        <div className="p-4 lg:p-6 border-b border-borderGray/50 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-accent rounded flex items-center justify-center">
               <Trophy className="w-5 h-5 text-background" />
@@ -39,6 +43,7 @@ const AdminLayout = () => {
               OCTA<span className="text-accent">ADMIN</span>
             </span>
           </div>
+          <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-1 text-textMuted hover:text-white"><X className="w-5 h-5" /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto py-6 px-4 space-y-1 custom-scrollbar">
@@ -51,6 +56,7 @@ const AdminLayout = () => {
               <Link
                 key={item.name}
                 to={item.path}
+                onClick={() => setSidebarOpen(false)}
                 className={`flex items-center justify-between px-3 py-2.5 rounded-lg transition-all duration-200 group ${
                   isActive 
                     ? 'bg-accent/10 text-accent font-semibold border border-accent/20' 
@@ -76,26 +82,27 @@ const AdminLayout = () => {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 h-full overflow-y-auto relative bg-[#0a0a0a]">
+      <main className="flex-1 min-w-0 h-full overflow-y-auto relative bg-[#0a0a0a]">
         {/* Top Header */}
-        <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-borderGray/50 px-8 py-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-display font-bold text-white capitalize">
+        <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-borderGray/50 px-4 lg:px-8 py-3 lg:py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 text-textMuted hover:text-white -ml-2"><Menu className="w-5 h-5" /></button>
+            <h2 className="text-lg lg:text-xl font-display font-bold text-white capitalize truncate">
               {location.pathname.split('/').pop() || 'Dashboard'}
             </h2>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="text-xs px-3 py-1 bg-green-500/20 text-green-500 border border-green-500/30 rounded-full font-bold tracking-widest uppercase">
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <div className="hidden sm:block text-xs px-3 py-1 bg-green-500/20 text-green-500 border border-green-500/30 rounded-full font-bold tracking-widest uppercase">
               SUPER_ADMIN
             </div>
-            <div className="w-10 h-10 rounded-full bg-surface border border-borderGray overflow-hidden flex items-center justify-center">
+            <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-full bg-surface border border-borderGray overflow-hidden flex items-center justify-center flex-shrink-0">
               <span className="text-accent font-bold font-display text-sm">OA</span>
             </div>
           </div>
         </header>
 
         {/* Dynamic Page Content */}
-        <div className="p-8">
+        <div className="p-4 lg:p-8">
           <Outlet />
         </div>
       </main>
