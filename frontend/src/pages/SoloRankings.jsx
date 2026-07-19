@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Search, Filter, Download, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { api } from '../api';
 
 const ROWS_PER_PAGE = 10;
 
@@ -16,6 +17,17 @@ const SoloRankings = () => {
     return () => { window.removeEventListener('storage', handler); window.removeEventListener('focus', handler) };
   }, []);
 
+  useEffect(() => {
+    api.rankings.players().then(data => {
+      if (data && data.length) {
+        const stored = JSON.stringify(data);
+        if (stored !== localStorage.getItem('octalock_players')) {
+          localStorage.setItem('octalock_players', stored);
+        }
+      }
+    }).catch(() => {});
+  }, []);
+
   useEffect(() => { setPage(1) }, [search]);
 
   const players = useMemo(() => {
@@ -25,9 +37,8 @@ const SoloRankings = () => {
       .map(p => ({
         ...p,
         pts: (p.wins || 0) * 3 + (p.draws || 0),
-        gd: (p.goalsFor || 0) - (p.goalsAgainst || 0),
       }))
-      .sort((a, b) => b.pts - a.pts || b.gd - a.gd)
+      .sort((a, b) => b.pts - a.pts || (b.goalsFor - b.goalsAgainst || 0) - (a.goalsFor - a.goalsAgainst || 0))
       .map((p, i) => ({ ...p, rank: i + 1 }));
   }, [version]);
 
@@ -91,7 +102,7 @@ const SoloRankings = () => {
               ) : (
                 paginatedPlayers.map((player) => (
                   <tr
-                    key={player.id || player.name}
+                    key={player.id || player._id || player.name}
                     onClick={() => setSelectedPlayer(player)}
                     className={`border-b border-borderGray/50 hover:bg-surface/30 transition-colors cursor-pointer ${player.rank <= 3 ? 'bg-gradient-to-r from-accent/5 to-transparent' : ''}`}
                   >

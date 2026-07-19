@@ -1,17 +1,8 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Search, Plus, Trash2, Edit, UserCheck, UserX, ArrowRightLeft, Download, Upload, X, Camera } from 'lucide-react';
+import { api } from '../api';
 
 const STORAGE_KEY = 'octalock_players';
-
-const loadPlayers = () => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return null;
-    const parsed = JSON.parse(stored);
-    if (!Array.isArray(parsed)) return null;
-    return parsed;
-  } catch { return null }
-};
 
 const initialPlayers = [
   { id: 1, name: 'Faker', nickname: 'Faker', country: 'KR', club: 'T1', email: 'faker@t1.gg', phone: '+82-10-1234', status: 'active', photo: 'https://ui-avatars.com/api/?name=Faker&background=random', matches: 45, wins: 38, draws: 2, losses: 5, goalsFor: 95, goalsAgainst: 55, streak: 'W W W W W' },
@@ -22,13 +13,35 @@ const initialPlayers = [
   { id: 6, name: 'Bin', nickname: 'Bin', country: 'CN', club: 'BLG', email: 'bin@blg.cn', phone: '+86-130-5678', status: 'active', photo: 'https://ui-avatars.com/api/?name=Bin&background=random', matches: 45, wins: 25, draws: 8, losses: 12, goalsFor: 65, goalsAgainst: 55, streak: 'L L W D W' },
 ];
 
+const loadLocal = () => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return null;
+    return parsed;
+  } catch { return null }
+};
+
 const AdminPlayers = () => {
-  const [players, setPlayers] = useState(() => loadPlayers() ?? initialPlayers);
+  const [players, setPlayers] = useState(() => loadLocal() ?? initialPlayers);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState(null);
   const [form, setForm] = useState({ name: '', nickname: '', country: '', club: '', email: '', phone: '', bio: '', photo: '', matches: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, streak: '' });
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    api.players.list().then(data => {
+      if (data && data.length) setPlayers(data);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(players)) }, [players]);
+
+  const sync = useCallback((action) => {
+    action().catch(() => {});
+  }, []);
 
   const handlePhotoUpload = (e) => {
     const file = e.target.files?.[0];
@@ -45,15 +58,11 @@ const AdminPlayers = () => {
     if (m && w + d <= m) setForm(prev => ({ ...prev, losses: m - w - d }));
   }, [form.matches, form.wins, form.draws]);
 
-  useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(players)) }, [players]);
-
-  const filtered = useMemo(() => {
-    return players.filter(p =>
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.club.toLowerCase().includes(search.toLowerCase()) ||
-      p.country.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [search, players]);
+  const filtered = useMemo(() => players.filter(p =>
+    p.name?.toLowerCase().includes(search.toLowerCase()) ||
+    p.club?.toLowerCase().includes(search.toLowerCase()) ||
+    p.country?.toLowerCase().includes(search.toLowerCase())
+  ), [search, players]);
 
   const openCreate = () => {
     setEditingPlayer(null);
@@ -75,27 +84,29 @@ const AdminPlayers = () => {
   const handleSave = () => {
     const payload = {
       ...form,
-      matches: Number(form.matches),
-      wins: Number(form.wins),
-      draws: Number(form.draws),
-      losses: Number(form.losses),
-      goalsFor: Number(form.goalsFor),
-      goalsAgainst: Number(form.goalsAgainst),
+      matches: Number(form.matches), wins: Number(form.wins), draws: Number(form.draws),
+      losses: Number(form.losses), goalsFor: Number(form.goalsFor), goalsAgainst: Number(form.goalsAgainst),
     };
     if (editingPlayer) {
-      setPlayers(prev => prev.map(p => p.id === editingPlayer.id ? { ...p, ...payload } : p));
+      const id = editingPlayer._id || editingPlayer.id;
+      setPlayers(prev => prev.map(p => (p._id || p.id) === id ? { ...p, ...payload } : p));
+      sync(() => api.players.update(id, payload));
     } else {
-      setPlayers(prev => [...prev, { id: Date.now(), ...payload, status: 'active', photo: payload.photo || `https://ui-avatars.com/api/?name=${form.name}&background=random` }]);
+      const newPlayer = { ...payload, id: Date.now(), status: 'active', photo: payload.photo || `https://ui-avatars.com/api/?name=${form.name}&background=random` };
+      setPlayers(prev => [...prev, newPlayer]);
+      sync(() => api.players.create(newPlayer));
     }
     setShowModal(false);
   };
 
   const toggleStatus = (id) => {
-    setPlayers(prev => prev.map(p => p.id === id ? { ...p, status: p.status === 'active' ? 'suspended' : 'active' } : p));
+    setPlayers(prev => prev.map(p => (p._id || p.id) === id ? { ...p, status: p.status === 'active' ? 'suspended' : 'active' } : p));
+    sync(() => api.players.update(id, { status: players.find(p => (p._id || p.id) === id)?.status === 'active' ? 'suspended' : 'active' }));
   };
 
   const deletePlayer = (id) => {
-    setPlayers(prev => prev.filter(p => p.id !== id));
+    setPlayers(prev => prev.filter(p => (p._id || p.id) !== id));
+    sync(() => api.players.delete(id));
   };
 
   const pts = (p) => (p.wins || 0) * 3 + (p.draws || 0);
@@ -127,13 +138,7 @@ const AdminPlayers = () => {
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-textMuted" />
-            <input
-              type="text"
-              placeholder="Search players..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="bg-surface border border-borderGray rounded-lg pl-10 pr-4 py-2 focus:outline-none focus:border-accent w-64 text-white"
-            />
+            <input type="text" placeholder="Search players..." value={search} onChange={e => setSearch(e.target.value)} className="bg-surface border border-borderGray rounded-lg pl-10 pr-4 py-2 focus:outline-none focus:border-accent w-64 text-white" />
           </div>
           <button className="btn-ghost flex items-center gap-2 text-sm"><Upload className="w-4 h-4" /> Import CSV</button>
           <button className="btn-ghost flex items-center gap-2 text-sm"><Download className="w-4 h-4" /> Export</button>
@@ -160,42 +165,38 @@ const AdminPlayers = () => {
             <tbody>
               {filtered.length === 0 ? (
                 <tr><td colSpan="9" className="p-8 text-center text-textMuted">No players found.</td></tr>
-              ) : (
-                filtered.map(player => (
-                  <tr key={player.id} className="border-b border-borderGray/30 hover:bg-surface/30 transition-colors">
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <img src={player.photo} className="w-10 h-10 rounded-full border border-borderGray" alt={player.name} />
-                        <div>
-                          <div className="font-semibold text-white">{player.name}</div>
-                          <div className="text-xs text-textMuted">{player.nickname}</div>
-                        </div>
+              ) : filtered.map(player => (
+                <tr key={player._id || player.id} className="border-b border-borderGray/30 hover:bg-surface/30 transition-colors">
+                  <td className="p-4">
+                    <div className="flex items-center gap-3">
+                      <img src={player.photo} className="w-10 h-10 rounded-full border border-borderGray" alt={player.name} />
+                      <div>
+                        <div className="font-semibold text-white">{player.name}</div>
+                        <div className="text-xs text-textMuted">{player.nickname}</div>
                       </div>
-                    </td>
-                    <td className="p-4 text-white">{player.country}</td>
-                    <td className="p-4 text-white font-medium">{player.club}</td>
-                    <td className="p-4 text-center text-green-400 font-semibold">{player.wins ?? 0}</td>
-                    <td className="p-4 text-center text-gray-400">{player.draws ?? 0}</td>
-                    <td className="p-4 text-center text-red-400">{player.losses ?? 0}</td>
-                    <td className="p-4 text-center font-display font-bold text-accent">{pts(player)}</td>
-                    <td className="p-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${player.status === 'active' ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
-                        {player.status}
-                      </span>
-                    </td>
-                    <td className="p-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => openEdit(player)} className="p-2 rounded-lg hover:bg-surface transition-colors" title="Edit"><Edit className="w-4 h-4 text-textMuted hover:text-white" /></button>
-                        <button onClick={() => toggleStatus(player.id)} className="p-2 rounded-lg hover:bg-surface transition-colors" title={player.status === 'active' ? 'Suspend' : 'Activate'}>
-                          {player.status === 'active' ? <UserX className="w-4 h-4 text-amber-400" /> : <UserCheck className="w-4 h-4 text-green-400" />}
-                        </button>
-                        <button className="p-2 rounded-lg hover:bg-surface transition-colors" title="Transfer"><ArrowRightLeft className="w-4 h-4 text-blue-400" /></button>
-                        <button onClick={() => deletePlayer(player.id)} className="p-2 rounded-lg hover:bg-red-500/10 transition-colors" title="Delete"><Trash2 className="w-4 h-4 text-red-400" /></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
+                    </div>
+                  </td>
+                  <td className="p-4 text-white">{player.country}</td>
+                  <td className="p-4 text-white font-medium">{player.club}</td>
+                  <td className="p-4 text-center text-green-400 font-semibold">{player.wins ?? 0}</td>
+                  <td className="p-4 text-center text-gray-400">{player.draws ?? 0}</td>
+                  <td className="p-4 text-center text-red-400">{player.losses ?? 0}</td>
+                  <td className="p-4 text-center font-display font-bold text-accent">{pts(player)}</td>
+                  <td className="p-4">
+                    <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${player.status === 'active' ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>{player.status}</span>
+                  </td>
+                  <td className="p-4 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <button onClick={() => openEdit(player)} className="p-2 rounded-lg hover:bg-surface transition-colors" title="Edit"><Edit className="w-4 h-4 text-textMuted hover:text-white" /></button>
+                      <button onClick={() => toggleStatus(player._id || player.id)} className="p-2 rounded-lg hover:bg-surface transition-colors" title={player.status === 'active' ? 'Suspend' : 'Activate'}>
+                        {player.status === 'active' ? <UserX className="w-4 h-4 text-amber-400" /> : <UserCheck className="w-4 h-4 text-green-400" />}
+                      </button>
+                      <button className="p-2 rounded-lg hover:bg-surface transition-colors" title="Transfer"><ArrowRightLeft className="w-4 h-4 text-blue-400" /></button>
+                      <button onClick={() => deletePlayer(player._id || player.id)} className="p-2 rounded-lg hover:bg-red-500/10 transition-colors" title="Delete"><Trash2 className="w-4 h-4 text-red-400" /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -204,36 +205,23 @@ const AdminPlayers = () => {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="glass-panel w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
-            <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 p-2 bg-surface hover:bg-surfaceHover rounded-full transition-colors text-white">
-              <X className="w-5 h-5" />
-            </button>
+            <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 p-2 bg-surface hover:bg-surfaceHover rounded-full transition-colors text-white"><X className="w-5 h-5" /></button>
             <div className="p-8">
               <h2 className="text-2xl font-display font-bold mb-6 text-white">{editingPlayer ? 'Edit Player' : 'Create Player'}</h2>
-
               <div className="mb-6">
                 <h3 className="text-sm font-bold text-textMuted uppercase tracking-wider mb-4">Profile Info</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {textInputs.map(field => (
                     <div key={field.key} className="space-y-2">
                       <label className="text-xs font-bold text-textMuted uppercase tracking-wider">{field.label}</label>
-                      <input
-                        type={field.type}
-                        value={form[field.key]}
-                        onChange={e => setForm(prev => ({ ...prev, [field.key]: e.target.value }))}
-                        placeholder={field.placeholder}
-                        className="w-full bg-background/50 border border-borderGray rounded-xl px-4 py-3 focus:outline-none focus:border-accent text-white"
-                      />
+                      <input type={field.type} value={form[field.key]} onChange={e => setForm(prev => ({ ...prev, [field.key]: e.target.value }))} placeholder={field.placeholder} className="w-full bg-background/50 border border-borderGray rounded-xl px-4 py-3 focus:outline-none focus:border-accent text-white" />
                     </div>
                   ))}
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-textMuted uppercase tracking-wider">Profile Photo</label>
                     <div className="mt-2 flex items-center gap-4">
                       <div className="w-20 h-20 rounded-full border-2 border-borderGray overflow-hidden bg-surface flex items-center justify-center">
-                        {form.photo ? (
-                          <img src={form.photo} className="w-full h-full object-cover" alt="preview" />
-                        ) : (
-                          <Camera className="w-6 h-6 text-textMuted" />
-                        )}
+                        {form.photo ? <img src={form.photo} className="w-full h-full object-cover" alt="preview" /> : <Camera className="w-6 h-6 text-textMuted" />}
                       </div>
                       <div>
                         <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoUpload} hidden />
@@ -244,58 +232,33 @@ const AdminPlayers = () => {
                   </div>
                   <div className="md:col-span-2 space-y-2">
                     <label className="text-xs font-bold text-textMuted uppercase tracking-wider">Bio</label>
-                    <textarea
-                      value={form.bio}
-                      onChange={e => setForm(prev => ({ ...prev, bio: e.target.value }))}
-                      placeholder="Player biography..."
-                      rows={2}
-                      className="w-full bg-background/50 border border-borderGray rounded-xl px-4 py-3 focus:outline-none focus:border-accent text-white resize-none"
-                    />
+                    <textarea value={form.bio} onChange={e => setForm(prev => ({ ...prev, bio: e.target.value }))} placeholder="Player biography..." rows={2} className="w-full bg-background/50 border border-borderGray rounded-xl px-4 py-3 focus:outline-none focus:border-accent text-white resize-none" />
                   </div>
                 </div>
               </div>
-
               <div className="border-t border-borderGray/50 pt-6 mb-6">
                 <h3 className="text-sm font-bold text-textMuted uppercase tracking-wider mb-4">Ranking Stats</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                   {statInputs.map(field => (
                     <div key={field.key} className="space-y-2">
                       <label className="text-xs font-bold text-textMuted uppercase tracking-wider">{field.label}</label>
-                      <input
-                        type={field.type}
-                        min="0"
-                        value={form[field.key]}
-                        onChange={e => setForm(prev => ({ ...prev, [field.key]: e.target.value }))}
-                        className="w-full bg-background/50 border border-borderGray rounded-xl px-4 py-3 focus:outline-none focus:border-accent text-white"
-                      />
+                      <input type={field.type} min="0" value={form[field.key]} onChange={e => setForm(prev => ({ ...prev, [field.key]: e.target.value }))} className="w-full bg-background/50 border border-borderGray rounded-xl px-4 py-3 focus:outline-none focus:border-accent text-white" />
                     </div>
                   ))}
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-textMuted uppercase tracking-wider">Losses (auto)</label>
-                    <div className="w-full bg-background/50 border border-borderGray rounded-xl px-4 py-3 text-red-400 font-bold">
-                      {Number(form.losses)}
-                    </div>
+                    <div className="w-full bg-background/50 border border-borderGray rounded-xl px-4 py-3 text-red-400 font-bold">{Number(form.losses)}</div>
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-textMuted uppercase tracking-wider">Points (auto)</label>
-                    <div className="w-full bg-background/50 border border-borderGray rounded-xl px-4 py-3 text-accent font-bold">
-                      {Number(form.wins) * 3 + Number(form.draws)}
-                    </div>
+                    <div className="w-full bg-background/50 border border-borderGray rounded-xl px-4 py-3 text-accent font-bold">{Number(form.wins) * 3 + Number(form.draws)}</div>
                   </div>
-
                 </div>
                 <div className="mt-4">
                   <label className="text-xs font-bold text-textMuted uppercase tracking-wider">Recent Form (e.g. W W L D W)</label>
-                  <input
-                    type="text"
-                    value={form.streak}
-                    onChange={e => setForm(prev => ({ ...prev, streak: e.target.value }))}
-                    placeholder="W W W L D"
-                    className="w-full mt-2 bg-background/50 border border-borderGray rounded-xl px-4 py-3 focus:outline-none focus:border-accent text-white"
-                  />
+                  <input type="text" value={form.streak} onChange={e => setForm(prev => ({ ...prev, streak: e.target.value }))} placeholder="W W W L D" className="w-full mt-2 bg-background/50 border border-borderGray rounded-xl px-4 py-3 focus:outline-none focus:border-accent text-white" />
                 </div>
               </div>
-
               <div className="flex justify-end gap-4">
                 <button onClick={() => setShowModal(false)} className="btn-ghost">Cancel</button>
                 <button onClick={handleSave} className="btn-accent">{editingPlayer ? 'Save Changes' : 'Create Player'}</button>

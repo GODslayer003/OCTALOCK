@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Swords, Save, Search, Trash2, Edit, Download, X, Calendar } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Swords, Save, Search, Trash2, Download, X, Calendar } from 'lucide-react';
+import { api } from '../api';
 
 const clubs = ['T1', 'Gen.G', 'JD Gaming', 'BLG', 'G2 Esports', 'DK'];
 const playersByClub = {
@@ -20,32 +21,43 @@ const initialMatches = [
 const AdminMatches = () => {
   const [matches, setMatches] = useState(() => JSON.parse(localStorage.getItem('octalock_matches')) || initialMatches);
   const [showForm, setShowForm] = useState(false);
-
-  useEffect(() => { localStorage.setItem('octalock_matches', JSON.stringify(matches)) }, [matches]);
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({
     season: 'Season 4', clubA: '', clubB: '', playerA: '', playerB: '',
     winner: '', goalsA: 0, goalsB: 0, mvp: '', date: '', notes: ''
   });
 
+  useEffect(() => {
+    api.matches.list().then(data => {
+      if (data && data.length) setMatches(data);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => { localStorage.setItem('octalock_matches', JSON.stringify(matches)) }, [matches]);
+
+  const sync = useCallback((action) => { action().catch(() => {}) }, []);
+
   const playersA = form.clubA ? (playersByClub[form.clubA] || []) : [];
   const playersB = form.clubB ? (playersByClub[form.clubB] || []) : [];
 
   const handleSave = () => {
-    const result = form.winner === 'draw' ? 'Draw' : form.winner === form.playerA ? form.playerA + ' wins' : form.playerB + ' wins';
     const newMatch = { ...form, id: Date.now(), goalsA: Number(form.goalsA), goalsB: Number(form.goalsB) };
     setMatches(prev => [newMatch, ...prev]);
+    sync(() => api.matches.create(newMatch));
     setShowForm(false);
     setForm({ season: 'Season 4', clubA: '', clubB: '', playerA: '', playerB: '', winner: '', goalsA: 0, goalsB: 0, mvp: '', date: '', notes: '' });
   };
 
-  const deleteMatch = (id) => setMatches(prev => prev.filter(m => m.id !== id));
+  const deleteMatch = (id) => {
+    setMatches(prev => prev.filter(m => (m._id || m.id) !== id));
+    sync(() => api.matches.delete(id));
+  };
 
   const filtered = matches.filter(m =>
-    m.playerA.toLowerCase().includes(search.toLowerCase()) ||
-    m.playerB.toLowerCase().includes(search.toLowerCase()) ||
-    m.clubA.toLowerCase().includes(search.toLowerCase()) ||
-    m.clubB.toLowerCase().includes(search.toLowerCase())
+    (m.playerA || '').toLowerCase().includes(search.toLowerCase()) ||
+    (m.playerB || '').toLowerCase().includes(search.toLowerCase()) ||
+    (m.clubA || '').toLowerCase().includes(search.toLowerCase()) ||
+    (m.clubB || '').toLowerCase().includes(search.toLowerCase())
   );
 
   const selectClass = "w-full bg-background/50 border border-borderGray rounded-xl px-4 py-3 focus:outline-none focus:border-accent text-white appearance-none";
@@ -68,7 +80,6 @@ const AdminMatches = () => {
         </div>
       </div>
 
-      {/* Record Match Form */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="glass-panel w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
@@ -89,7 +100,6 @@ const AdminMatches = () => {
                   </div>
                 </div>
 
-                {/* Club A */}
                 <div className="glass-card p-5 space-y-4">
                   <div className="text-xs font-bold text-accent uppercase tracking-widest">Team A</div>
                   <div><label className="text-xs text-textMuted">Club</label>
@@ -109,7 +119,6 @@ const AdminMatches = () => {
                   </div>
                 </div>
 
-                {/* Club B */}
                 <div className="glass-card p-5 space-y-4">
                   <div className="text-xs font-bold text-red-400 uppercase tracking-widest">Team B</div>
                   <div><label className="text-xs text-textMuted">Club</label>
@@ -158,7 +167,6 @@ const AdminMatches = () => {
         </div>
       )}
 
-      {/* Match History Table */}
       <div className="glass-panel overflow-hidden">
         <table className="w-full text-left border-collapse whitespace-nowrap">
           <thead>
@@ -171,7 +179,7 @@ const AdminMatches = () => {
             {filtered.length === 0 ? (
               <tr><td colSpan="7" className="p-8 text-center text-textMuted">No matches found.</td></tr>
             ) : filtered.map(m => (
-              <tr key={m.id} className="border-b border-borderGray/30 hover:bg-surface/30 transition-colors">
+              <tr key={m._id || m.id} className="border-b border-borderGray/30 hover:bg-surface/30 transition-colors">
                 <td className="p-4 text-textMuted text-sm flex items-center gap-2"><Calendar className="w-4 h-4" />{m.date}</td>
                 <td className="p-4 text-sm text-white">{m.season}</td>
                 <td className="p-4 font-semibold text-white">{m.playerA} <span className="text-textMuted mx-2">vs</span> {m.playerB}</td>
@@ -179,7 +187,7 @@ const AdminMatches = () => {
                 <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${m.winner === 'draw' ? 'bg-gray-500/20 text-gray-400' : 'bg-green-500/20 text-green-400'}`}>{m.winner === 'draw' ? 'DRAW' : m.winner}</span></td>
                 <td className="p-4 text-accent font-semibold text-sm">{m.mvp || '—'}</td>
                 <td className="p-4 text-right">
-                  <button onClick={() => deleteMatch(m.id)} className="p-2 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4 text-red-400" /></button>
+                  <button onClick={() => deleteMatch(m._id || m.id)} className="p-2 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4 text-red-400" /></button>
                 </td>
               </tr>
             ))}

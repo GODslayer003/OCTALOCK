@@ -1,5 +1,6 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Search, Plus, Trash2, Edit, Download, X, Users, Camera } from 'lucide-react';
+import { api } from '../api';
 
 const STORAGE_KEY_CLUBS = 'octalock_clubs';
 
@@ -29,6 +30,16 @@ const AdminClubs = () => {
   const [form, setForm] = useState({ name: '', captain: '', members: 0, logo: '', matches: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 });
   const fileInputRef = useRef(null);
 
+  useEffect(() => {
+    api.clubs.list().then(data => {
+      if (data && data.length) setClubs(data);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => { localStorage.setItem(STORAGE_KEY_CLUBS, JSON.stringify(clubs)) }, [clubs]);
+
+  const sync = useCallback((action) => { action().catch(() => {}) }, []);
+
   const handleLogoUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -44,9 +55,7 @@ const AdminClubs = () => {
     if (m && w + d <= m) setForm(prev => ({ ...prev, losses: m - w - d }));
   }, [form.matches, form.wins, form.draws]);
 
-  useEffect(() => { localStorage.setItem(STORAGE_KEY_CLUBS, JSON.stringify(clubs)) }, [clubs]);
-
-  const filtered = useMemo(() => clubs.filter(c => c.name.toLowerCase().includes(search.toLowerCase())), [search, clubs]);
+  const filtered = useMemo(() => clubs.filter(c => c.name?.toLowerCase().includes(search.toLowerCase())), [search, clubs]);
 
   const openCreate = () => { setEditingClub(null); setForm({ name: '', captain: '', members: 0, logo: '', matches: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 }); setShowModal(true); };
   const openEdit = (club) => {
@@ -69,11 +78,21 @@ const AdminClubs = () => {
       goalsFor: Number(form.goalsFor),
       goalsAgainst: Number(form.goalsAgainst),
     };
-    if (editingClub) setClubs(prev => prev.map(c => c.id === editingClub.id ? { ...c, ...payload } : c));
-    else setClubs(prev => [...prev, { id: Date.now(), ...payload, logo: payload.logo || `https://ui-avatars.com/api/?name=${form.name}&background=random` }]);
+    if (editingClub) {
+      const id = editingClub._id || editingClub.id;
+      setClubs(prev => prev.map(c => (c._id || c.id) === id ? { ...c, ...payload } : c));
+      sync(() => api.clubs.update(id, payload));
+    } else {
+      const newClub = { id: Date.now(), ...payload, logo: payload.logo || `https://ui-avatars.com/api/?name=${form.name}&background=random` };
+      setClubs(prev => [...prev, newClub]);
+      sync(() => api.clubs.create(newClub));
+    }
     setShowModal(false);
   };
-  const deleteClub = (id) => setClubs(prev => prev.filter(c => c.id !== id));
+  const deleteClub = (id) => {
+    setClubs(prev => prev.filter(c => (c._id || c.id) !== id));
+    sync(() => api.clubs.delete(id));
+  };
 
   const pts = (c) => (c.wins || 0) * 3 + (c.draws || 0);
 
@@ -105,7 +124,7 @@ const AdminClubs = () => {
           </thead>
           <tbody>
             {filtered.map(club => (
-              <tr key={club.id} className="border-b border-borderGray/30 hover:bg-surface/30 transition-colors">
+              <tr key={club._id || club.id} className="border-b border-borderGray/30 hover:bg-surface/30 transition-colors">
                 <td className="p-4"><div className="flex items-center gap-3"><img src={club.logo} className="w-10 h-10 rounded-lg border border-borderGray" alt="" /><span className="font-bold text-white">{club.name}</span></div></td>
                 <td className="p-4 text-white">{club.captain}</td>
                 <td className="p-4 text-center text-white"><Users className="w-4 h-4 inline mr-1 text-textMuted" />{club.members}</td>
@@ -115,7 +134,7 @@ const AdminClubs = () => {
                 <td className="p-4 text-center font-display font-black text-accent text-lg">{pts(club)}</td>
                 <td className="p-4 text-right">
                   <button onClick={() => openEdit(club)} className="p-2 hover:bg-surface rounded-lg"><Edit className="w-4 h-4 text-textMuted" /></button>
-                  <button onClick={() => deleteClub(club.id)} className="p-2 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4 text-red-400" /></button>
+                  <button onClick={() => deleteClub(club._id || club.id)} className="p-2 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4 text-red-400" /></button>
                 </td>
               </tr>
             ))}

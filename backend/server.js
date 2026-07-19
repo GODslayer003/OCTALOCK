@@ -11,7 +11,6 @@ dotenv.config();
 
 const app = express();
 
-// Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors());
@@ -19,30 +18,37 @@ app.use(helmet());
 app.use(morgan('dev'));
 app.use(compression());
 
-// Rate Limiter
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
+  windowMs: 15 * 60 * 1000,
+  max: 200,
   standardHeaders: true,
   legacyHeaders: false,
 });
 app.use('/api', apiLimiter);
 
-// Database Connection
-mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/octalock')
-.then(() => console.log('MongoDB connected'))
-.catch(err => console.error('MongoDB connection error:', err));
+let cachedDb = null;
+const connectDB = async () => {
+  if (cachedDb) return;
+  try {
+    await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/octalock');
+    cachedDb = mongoose.connection;
+    console.log('MongoDB connected');
+  } catch (err) {
+    console.error('MongoDB connection error:', err.message);
+    if (process.env.VERCEL) console.log('Running without DB — using fallback');
+  }
+};
 
-// Routes
-// app.use('/api/auth', require('./routes/authRoutes'));
-// app.use('/api/admin', require('./routes/adminRoutes'));
-// app.use('/api/players', require('./routes/playerRoutes'));
-// app.use('/api/clubs', require('./routes/clubRoutes'));
-// app.use('/api/matches', require('./routes/matchRoutes'));
-// app.use('/api/seasons', require('./routes/seasonRoutes'));
-// app.use('/api/rankings', require('./routes/rankingRoutes'));
+app.use('/api/players', require('./routes/playerRoutes'));
+app.use('/api/clubs', require('./routes/clubRoutes'));
+app.use('/api/matches', require('./routes/matchRoutes'));
+app.use('/api/seasons', require('./routes/seasonRoutes'));
+app.use('/api/rankings', require('./routes/rankingRoutes'));
 
-// Error Handler
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' });
+});
+
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(err.status || 500).json({
@@ -53,8 +59,8 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 if (process.env.NODE_ENV !== 'vercel') {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+  connectDB().then(() => {
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   });
 }
 

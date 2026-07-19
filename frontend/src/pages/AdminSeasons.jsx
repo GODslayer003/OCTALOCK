@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Calendar, Plus, Archive, Trash2, Trophy, Lock, Unlock, X } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Calendar, Plus, Lock, Unlock, Trash2, X } from 'lucide-react';
+import { api } from '../api';
 
 const initialSeasons = [
   { id: 4, name: 'Season 4', year: '2026', status: 'ACTIVE', matches: 45, soloChamp: null, clubChamp: null },
@@ -13,19 +14,33 @@ const AdminSeasons = () => {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ name: '', year: '' });
 
+  useEffect(() => {
+    api.seasons.list().then(data => {
+      if (data && data.length) setSeasons(data);
+    }).catch(() => {});
+  }, []);
+
   useEffect(() => { localStorage.setItem('octalock_seasons', JSON.stringify(seasons)) }, [seasons]);
 
+  const sync = useCallback((action) => { action().catch(() => {}) }, []);
+
   const handleCreate = () => {
-    setSeasons(prev => [{ id: Date.now(), name: form.name, year: form.year, status: 'ACTIVE', matches: 0, soloChamp: null, clubChamp: null }, ...prev]);
+    const newSeason = { id: Date.now(), name: form.name, year: form.year, status: 'ACTIVE', matches: 0, soloChamp: null, clubChamp: null };
+    setSeasons(prev => [newSeason, ...prev]);
+    sync(() => api.seasons.create(newSeason));
     setShowModal(false);
     setForm({ name: '', year: '' });
   };
 
   const toggleLock = (id) => {
-    setSeasons(prev => prev.map(s => s.id === id ? { ...s, status: s.status === 'ACTIVE' ? 'LOCKED' : 'ACTIVE' } : s));
+    setSeasons(prev => prev.map(s => (s._id || s.id) === id ? { ...s, status: s.status === 'ACTIVE' ? 'LOCKED' : 'ACTIVE' } : s));
+    sync(() => api.seasons.toggle(id));
   };
 
-  const deleteSeason = (id) => setSeasons(prev => prev.filter(s => s.id !== id));
+  const deleteSeason = (id) => {
+    setSeasons(prev => prev.filter(s => (s._id || s.id) !== id));
+    sync(() => api.seasons.delete(id));
+  };
 
   return (
     <div>
@@ -39,7 +54,7 @@ const AdminSeasons = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {seasons.map(season => (
-          <div key={season.id} className={`glass-panel p-6 ${season.status === 'ACTIVE' ? 'border-accent/30' : ''}`}>
+          <div key={season._id || season.id} className={`glass-panel p-6 ${season.status === 'ACTIVE' ? 'border-accent/30' : ''}`}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${season.status === 'ACTIVE' ? 'bg-accent/20' : 'bg-surface'}`}>
@@ -71,10 +86,10 @@ const AdminSeasons = () => {
             </div>
 
             <div className="flex gap-2 border-t border-borderGray/30 pt-4">
-              <button onClick={() => toggleLock(season.id)} className="flex-1 btn-ghost text-sm flex items-center justify-center gap-2">
+              <button onClick={() => toggleLock(season._id || season.id)} className="flex-1 btn-ghost text-sm flex items-center justify-center gap-2">
                 {season.status === 'ACTIVE' ? <><Lock className="w-4 h-4" /> Archive</> : <><Unlock className="w-4 h-4" /> Reopen</>}
               </button>
-              <button onClick={() => deleteSeason(season.id)} className="p-2 rounded-lg hover:bg-red-500/10 transition-colors">
+              <button onClick={() => deleteSeason(season._id || season.id)} className="p-2 rounded-lg hover:bg-red-500/10 transition-colors">
                 <Trash2 className="w-4 h-4 text-red-400" />
               </button>
             </div>

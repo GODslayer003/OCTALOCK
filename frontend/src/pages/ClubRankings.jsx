@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Search, Download, Filter, X, Trophy, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+import { api } from '../api';
 
 const ROWS_PER_PAGE = 10;
 
@@ -16,6 +17,17 @@ const ClubRankings = () => {
     return () => { window.removeEventListener('storage', handler); window.removeEventListener('focus', handler) };
   }, []);
 
+  useEffect(() => {
+    api.rankings.clubs().then(data => {
+      if (data && data.length) {
+        const stored = JSON.stringify(data);
+        if (stored !== localStorage.getItem('octalock_clubs')) {
+          localStorage.setItem('octalock_clubs', stored);
+        }
+      }
+    }).catch(() => {});
+  }, []);
+
   useEffect(() => { setPage(1) }, [search]);
 
   const clubs = useMemo(() => {
@@ -25,9 +37,8 @@ const ClubRankings = () => {
       .map(c => ({
         ...c,
         pts: (c.wins || 0) * 3 + (c.draws || 0),
-        gd: (c.goalsFor || 0) - (c.goalsAgainst || 0),
       }))
-      .sort((a, b) => b.pts - a.pts || b.gd - a.gd)
+      .sort((a, b) => b.pts - a.pts || (b.goalsFor - b.goalsAgainst || 0) - (a.goalsFor - a.goalsAgainst || 0))
       .map((c, i) => ({ ...c, rank: i + 1 }));
   }, [version]);
 
@@ -93,7 +104,7 @@ const ClubRankings = () => {
               ) : (
                 paginatedClubs.map(club => (
                   <tr
-                    key={club.id || club.name}
+                    key={club.id || club._id || club.name}
                     onClick={() => setSelectedClub(club)}
                     className={`border-b border-borderGray/50 hover:bg-surface/30 transition-colors cursor-pointer ${club.rank <= 3 ? 'bg-gradient-to-r from-accent/5 to-transparent' : ''}`}
                   >
