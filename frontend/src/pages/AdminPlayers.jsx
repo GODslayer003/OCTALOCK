@@ -81,32 +81,38 @@ const AdminPlayers = () => {
     setShowModal(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const payload = {
       ...form,
       matches: Number(form.matches), wins: Number(form.wins), draws: Number(form.draws),
       losses: Number(form.losses), goalsFor: Number(form.goalsFor), goalsAgainst: Number(form.goalsAgainst),
     };
     if (editingPlayer) {
-      const id = editingPlayer._id || editingPlayer.id;
+      const id = editingPlayer._id;
       setPlayers(prev => prev.map(p => (p._id || p.id) === id ? { ...p, ...payload } : p));
-      sync(() => api.players.update(id, payload));
+      if (id) sync(() => api.players.update(id, payload));
     } else {
-      const newPlayer = { ...payload, id: Date.now(), status: 'active', photo: payload.photo || `https://ui-avatars.com/api/?name=${form.name}&background=random` };
-      setPlayers(prev => [...prev, newPlayer]);
-      sync(() => api.players.create(newPlayer));
+      const newPlayer = { ...payload, status: 'active', photo: payload.photo || `https://ui-avatars.com/api/?name=${form.name}&background=random` };
+      try {
+        const createdPlayer = await api.players.create(newPlayer);
+        setPlayers(prev => [...prev, createdPlayer]);
+      } catch { }
     }
     setShowModal(false);
   };
 
   const toggleStatus = (id) => {
     setPlayers(prev => prev.map(p => (p._id || p.id) === id ? { ...p, status: p.status === 'active' ? 'suspended' : 'active' } : p));
-    sync(() => api.players.update(id, { status: players.find(p => (p._id || p.id) === id)?.status === 'active' ? 'suspended' : 'active' }));
+    const player = players.find(p => (p._id || p.id) === id);
+    if (player?._id) {
+      sync(() => api.players.update(player._id, { status: player.status === 'active' ? 'suspended' : 'active' }));
+    }
   };
 
   const deletePlayer = (id) => {
     setPlayers(prev => prev.filter(p => (p._id || p.id) !== id));
-    sync(() => api.players.delete(id));
+    const player = players.find(p => (p._id || p.id) === id);
+    if (player?._id) sync(() => api.players.delete(player._id));
   };
 
   const pts = (p) => (p.wins || 0) * 3 + (p.draws || 0);
