@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Filter, Download, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Download, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '../api';
 
 const ROWS_PER_PAGE = 10;
@@ -42,20 +42,28 @@ const SoloRankings = () => {
     const withMetrics = raw.map(p => {
       const wins = Number(p.wins) || 0;
       const draws = Number(p.draws) || 0;
+      const losses = Number(p.losses) || 0;
+      const matches = Number(p.matches) || wins + draws + losses;
       const goalsFor = Number(p.goalsFor) || 0;
       const goalsAgainst = Number(p.goalsAgainst) || 0;
       const pts = wins * 3 + draws;
-      const goalDifference = goalsFor - goalsAgainst;
-      const luckScore = draws * 2 + Math.max(0, goalDifference);
-      return { ...p, pts, goalDifference, luckScore };
+      const winRate = matches ? wins / matches : 0;
+      return { ...p, pts, matches, wins, draws, losses, winRate, goalDifference: goalsFor - goalsAgainst };
     });
 
-    const sortByOverall = (a, b) => b.pts - a.pts || b.goalDifference - a.goalDifference || b.wins - a.wins;
-    const sortByPoints = (a, b) => b.pts - a.pts || b.wins - a.wins || b.goalDifference - a.goalDifference;
-    const sortByLuck = (a, b) => b.luckScore - a.luckScore || b.draws - a.draws || b.goalDifference - a.goalDifference;
+    const maxPoints = Math.max(...withMetrics.map(player => player.pts), 1);
+    const maxWinRate = Math.max(...withMetrics.map(player => player.winRate), 1);
+    const rankedPlayers = withMetrics.map(player => ({
+      ...player,
+      overallScore: (player.pts / maxPoints) + (player.winRate / maxWinRate),
+    }));
+
+    const sortByOverall = (a, b) => b.overallScore - a.overallScore || b.pts - a.pts || b.winRate - a.winRate;
+    const sortByPoints = (a, b) => b.pts - a.pts || b.winRate - a.winRate || b.wins - a.wins;
+    const sortByLuck = (a, b) => b.winRate - a.winRate || b.pts - a.pts || b.wins - a.wins;
     const sortPlayers = rankingFilter === 'luckiest' ? sortByLuck : rankingFilter === 'points' ? sortByPoints : sortByOverall;
 
-    return withMetrics
+    return rankedPlayers
       .sort(sortPlayers)
       .map((p, i) => ({ ...p, rank: i + 1 }));
   }, [version, rankingFilter]);
@@ -91,18 +99,16 @@ const SoloRankings = () => {
               className="bg-surface border border-borderGray rounded-lg pl-10 pr-4 py-2 focus:outline-none focus:border-accent w-64 md:w-80 transition-all text-white"
             />
           </div>
-          <div className="flex items-center gap-1 rounded-lg border border-borderGray bg-surface p-1" role="group" aria-label="Ranking filter">
-            {RANKING_FILTERS.map(filter => (
-              <button
-                key={filter.id}
-                type="button"
-                onClick={() => setRankingFilter(filter.id)}
-                aria-pressed={rankingFilter === filter.id}
-                className={`px-3 py-1.5 rounded-md text-sm font-semibold transition-colors ${rankingFilter === filter.id ? 'bg-accent text-background' : 'text-textMuted hover:bg-surfaceHover hover:text-white'}`}
-              >
-                {filter.label}
-              </button>
-            ))}
+          <div className="relative">
+            <label htmlFor="ranking-filter" className="sr-only">Ranking filter</label>
+            <select
+              id="ranking-filter"
+              value={rankingFilter}
+              onChange={(e) => setRankingFilter(e.target.value)}
+              className="appearance-none bg-surface border border-borderGray rounded-lg pl-3 pr-9 py-2 text-sm font-semibold text-white focus:outline-none focus:border-accent cursor-pointer"
+            >
+              {RANKING_FILTERS.map(filter => <option key={filter.id} value={filter.id}>{filter.label}</option>)}
+            </select>
           </div>
           <button className="btn-ghost flex items-center gap-2"><Download className="w-4 h-4"/> Export</button>
         </div>
@@ -153,7 +159,7 @@ const SoloRankings = () => {
                     <td className="p-4 text-center text-gray-400">{player.draws || 0}</td>
                     <td className="p-4 text-center text-red-400">{player.losses || 0}</td>
                     <td className="p-4 text-center font-semibold">
-                      {player.matches ? `${((player.wins / player.matches) * 100).toFixed(1)}%` : '0.0%'}
+                      {(player.winRate * 100).toFixed(1)}%
                     </td>
                     <td className="p-4 text-center font-display font-bold text-accent text-lg">{player.pts}</td>
                     <td className="p-4 text-center">
@@ -217,7 +223,7 @@ const SoloRankings = () => {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                 <div className="bg-surface/50 p-4 rounded-lg text-center">
                   <div className="text-textMuted text-sm mb-1">Win Rate</div>
-                  <div className="text-xl font-bold">{selectedPlayer.matches ? `${((selectedPlayer.wins / selectedPlayer.matches) * 100).toFixed(1)}%` : '0.0%'}</div>
+                  <div className="text-xl font-bold">{(selectedPlayer.winRate * 100).toFixed(1)}%</div>
                 </div>
                 <div className="bg-surface/50 p-4 rounded-lg text-center">
                   <div className="text-textMuted text-sm mb-1">Wins</div>
