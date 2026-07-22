@@ -1,8 +1,12 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/+$/, '');
 
-if (!API_BASE_URL) {
+if (!configuredApiBaseUrl) {
   throw new Error('VITE_API_BASE_URL is not configured');
 }
+
+export const API_BASE_URL = configuredApiBaseUrl.endsWith('/api')
+  ? configuredApiBaseUrl
+  : `${configuredApiBaseUrl}/api`;
 
 async function request(path, options = {}) {
   const res = await fetch(`${API_BASE_URL}${path}`, {
