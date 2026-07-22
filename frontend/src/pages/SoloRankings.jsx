@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Download, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Download, X, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { api } from '../api';
 
 const ROWS_PER_PAGE = 10;
@@ -99,16 +99,18 @@ const SoloRankings = () => {
               className="bg-surface border border-borderGray rounded-lg pl-10 pr-4 py-2 focus:outline-none focus:border-accent w-64 md:w-80 transition-all text-white"
             />
           </div>
-          <div className="relative">
+          <div className="relative rounded-lg border border-accent/70 bg-[#171717] shadow-[0_0_18px_rgba(245,185,66,0.12)]">
             <label htmlFor="ranking-filter" className="sr-only">Ranking filter</label>
             <select
               id="ranking-filter"
               value={rankingFilter}
               onChange={(e) => setRankingFilter(e.target.value)}
-              className="appearance-none bg-surface border border-borderGray rounded-lg pl-3 pr-9 py-2 text-sm font-semibold text-white focus:outline-none focus:border-accent cursor-pointer"
+              style={{ colorScheme: 'dark' }}
+              className="ranking-filter appearance-none bg-transparent rounded-lg pl-3 pr-9 py-2 text-sm font-semibold text-white focus:outline-none cursor-pointer"
             >
-              {RANKING_FILTERS.map(filter => <option key={filter.id} value={filter.id}>{filter.label}</option>)}
+              {RANKING_FILTERS.map(filter => <option key={filter.id} value={filter.id} className="bg-[#171717] text-white">{filter.label}</option>)}
             </select>
+            <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-accent" />
           </div>
           <button className="btn-ghost flex items-center gap-2"><Download className="w-4 h-4"/> Export</button>
         </div>
