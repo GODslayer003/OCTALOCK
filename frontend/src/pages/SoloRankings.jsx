@@ -3,12 +3,18 @@ import { Search, Filter, Download, X, ChevronLeft, ChevronRight } from 'lucide-r
 import { api } from '../api';
 
 const ROWS_PER_PAGE = 10;
+const RANKING_FILTERS = [
+  { id: 'overall', label: 'Overall' },
+  { id: 'points', label: 'Points' },
+  { id: 'luckiest', label: 'Luckiest' },
+];
 
 const SoloRankings = () => {
   const [search, setSearch] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [version, setVersion] = useState(0);
   const [page, setPage] = useState(1);
+  const [rankingFilter, setRankingFilter] = useState('overall');
 
   useEffect(() => {
     const handler = () => setVersion(v => v + 1);
@@ -28,19 +34,31 @@ const SoloRankings = () => {
     }).catch(() => {});
   }, []);
 
-  useEffect(() => { setPage(1) }, [search]);
+  useEffect(() => { setPage(1) }, [search, rankingFilter]);
 
   const players = useMemo(() => {
     let raw = [];
     try { const stored = localStorage.getItem('octalock_players'); if (stored) raw = JSON.parse(stored); if (!Array.isArray(raw)) raw = [] } catch { raw = [] }
-    return raw
-      .map(p => ({
-        ...p,
-        pts: (p.wins || 0) * 3 + (p.draws || 0),
-      }))
-      .sort((a, b) => b.pts - a.pts || (b.goalsFor - b.goalsAgainst || 0) - (a.goalsFor - a.goalsAgainst || 0))
+    const withMetrics = raw.map(p => {
+      const wins = Number(p.wins) || 0;
+      const draws = Number(p.draws) || 0;
+      const goalsFor = Number(p.goalsFor) || 0;
+      const goalsAgainst = Number(p.goalsAgainst) || 0;
+      const pts = wins * 3 + draws;
+      const goalDifference = goalsFor - goalsAgainst;
+      const luckScore = draws * 2 + Math.max(0, goalDifference);
+      return { ...p, pts, goalDifference, luckScore };
+    });
+
+    const sortByOverall = (a, b) => b.pts - a.pts || b.goalDifference - a.goalDifference || b.wins - a.wins;
+    const sortByPoints = (a, b) => b.pts - a.pts || b.wins - a.wins || b.goalDifference - a.goalDifference;
+    const sortByLuck = (a, b) => b.luckScore - a.luckScore || b.draws - a.draws || b.goalDifference - a.goalDifference;
+    const sortPlayers = rankingFilter === 'luckiest' ? sortByLuck : rankingFilter === 'points' ? sortByPoints : sortByOverall;
+
+    return withMetrics
+      .sort(sortPlayers)
       .map((p, i) => ({ ...p, rank: i + 1 }));
-  }, [version]);
+  }, [version, rankingFilter]);
 
   const filteredPlayers = useMemo(() => {
     return players.filter(p =>
@@ -73,7 +91,19 @@ const SoloRankings = () => {
               className="bg-surface border border-borderGray rounded-lg pl-10 pr-4 py-2 focus:outline-none focus:border-accent w-64 md:w-80 transition-all text-white"
             />
           </div>
-          <button className="btn-ghost p-2"><Filter className="w-5 h-5" /></button>
+          <div className="flex items-center gap-1 rounded-lg border border-borderGray bg-surface p-1" role="group" aria-label="Ranking filter">
+            {RANKING_FILTERS.map(filter => (
+              <button
+                key={filter.id}
+                type="button"
+                onClick={() => setRankingFilter(filter.id)}
+                aria-pressed={rankingFilter === filter.id}
+                className={`px-3 py-1.5 rounded-md text-sm font-semibold transition-colors ${rankingFilter === filter.id ? 'bg-accent text-background' : 'text-textMuted hover:bg-surfaceHover hover:text-white'}`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
           <button className="btn-ghost flex items-center gap-2"><Download className="w-4 h-4"/> Export</button>
         </div>
       </div>
